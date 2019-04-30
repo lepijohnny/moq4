@@ -13,6 +13,7 @@ namespace Moq
 		private object[] arguments;
 		private MethodInfo method;
 		private object returnValue;
+
 		private VerificationState verificationState;
 
 		/// <summary>
@@ -86,41 +87,7 @@ namespace Moq
 		/// </remarks>
 		public abstract void Return(object value);
 
-		internal void MarkAsMatchedBySetup()  // this supports the `mock.VerifyAll()` machinery
-		{
-			if (this.verificationState == VerificationState.Invoked)
-			{
-				this.verificationState = VerificationState.InvokedAndMatchedBySetup;
-			}
-		}
-
-		internal void MarkAsMatchedByVerifiableSetup()  // this supports the `mock.Verify()` machinery
-		{
-			if (this.verificationState == VerificationState.Invoked ||
-				this.verificationState == VerificationState.InvokedAndMatchedBySetup)
-			{
-				this.verificationState = VerificationState.InvokedAndMatchedByVerifiableSetup;
-			}
-		}
-
 		internal void MarkAsVerified() => this.verificationState = VerificationState.Verified;
-
-		internal void MarkAsVerifiedIfMatchedBySetup()  // this supports the `mock.VerifyAll()` machinery
-		{
-			if (this.verificationState == VerificationState.InvokedAndMatchedBySetup ||
-				this.verificationState == VerificationState.InvokedAndMatchedByVerifiableSetup)
-			{
-				this.verificationState = VerificationState.Verified;
-			}
-		}
-
-		internal void MarkAsVerifiedIfMatchedByVerifiableSetup()  // this supports the `mock.Verify()` machinery
-		{
-			if (this.verificationState == VerificationState.InvokedAndMatchedByVerifiableSetup)
-			{
-				this.verificationState = VerificationState.Verified;
-			}
-		}
 
 		protected void SetReturnValue(object returnValue)
 		{

@@ -53,9 +53,17 @@ namespace Moq.Tests.Linq
 
 				Assert.Throws<MockException>(() => foo.Do());
 
-				Mock.Get(foo).Verify();
+				Mock.Get(foo).VerifyAll();
 
 				Assert.Equal("1", foo.Id);
+			}
+
+			[Fact]
+			public void WhenQueryingMultipleWithProperty_ThenItIsStrict_()
+			{
+				var foo = Mock.Of<IFoo>(m => m.Id == "1");
+
+				Mock.Get(foo).VerifyAll();
 			}
 		}
 

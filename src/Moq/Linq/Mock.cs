@@ -51,7 +51,7 @@ namespace Moq
 			mock.Invocations.Clear();
 			foreach (var inner in mock.Setups.GetInnerMockSetups())
 			{
-				inner.GetInnerMock().Invocations.Clear();
+				inner.Setup.GetInnerMock().Invocations.Clear();
 			}
 
 			return mocked;

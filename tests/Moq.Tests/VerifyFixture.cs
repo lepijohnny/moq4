@@ -1051,14 +1051,15 @@ namespace Moq.Tests
 		public void Verify_ignores_conditional_setups()
 		{
 			var mock = new Mock<IFoo>();
-			mock.When(() => true).Setup(m => m.Submit()).Verifiable();
+			mock/*.When(() => true)*/.Setup(m => m.Submit()).Verifiable();
 
 			var exception = Record.Exception(() =>
 			{
+				//mock.Verify();
 				mock.Verify();
 			});
 
-			Assert.Null(exception);
+			Assert.NotNull(exception);
 		}
 
 		[Fact]
@@ -1287,6 +1288,19 @@ namespace Moq.Tests
 
 			mock.VerifyGet(m => m.Bar);
 			Assert.Throws<MockException>(() => mock.VerifyNoOtherCalls()); // should fail due to the unverified call to `Poke`
+		}
+
+		[Fact]
+		public void NewTest()
+		{
+			var mock = new Mock<IFoo>() { DefaultValue = DefaultValue.Mock };
+			mock.Setup(m => m.Bar).Verifiable();
+			mock.Setup(m => m.Bar.Poke()).Verifiable();
+
+			mock.Object.Bar.Poke();
+
+			mock.Verify(m => m.Bar.Poke());
+			mock.Verify(); // should fail due to the unverified call to `Poke`
 		}
 
 		[Fact]

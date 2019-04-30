@@ -543,9 +543,9 @@ namespace Moq
 			Mock.VerifyNoOtherCalls(this);
 		}
 
-#endregion
+		#endregion
 
-#region Raise
+		#region Raise
 
 		/// <include file='Mock.Generic.xdoc' path='docs/doc[@for="Mock{T}.Raise"]/*'/>
 		[SuppressMessage("Microsoft.Design", "CA1030:UseEventsWhereAppropriate", Justification = "Raises the event, rather than being one.")]

@@ -82,26 +82,5 @@ namespace Moq
 
 			return builder.ToString();
 		}
-
-		public virtual MockException TryVerify()
-		{
-			return this.IsVerifiable ? this.TryVerifyAll() : null;
-		}
-
-		public abstract MockException TryVerifyAll();
-
-		public MockException TryVerifyInnerMock(Func<Mock, MockException> verify)
-		{
-			if (this.ReturnsInnerMock(out var innerMock))
-			{
-				var error = verify(innerMock);
-				if (error?.IsVerificationError == true)
-				{
-					return MockException.FromInnerMockOf(this, error);
-				}
-			}
-
-			return null;
-		}
 	}
 }

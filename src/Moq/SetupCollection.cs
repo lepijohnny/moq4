@@ -7,14 +7,53 @@ using System.Linq;
 
 namespace Moq
 {
+	internal sealed class InvokableSetup
+	{
+		internal struct Identifier
+		{
+			public int Id { get; }
+
+			public Identifier(int id)
+			{
+				Id = id;
+			}
+		}
+
+		private static InvokableSetup notRegistered = new InvokableSetup(-1, null);
+
+		public Identifier Id { get; }
+		public Setup Setup { get; }
+		public bool CanVerify { get; }
+
+		public InvokableSetup(int id, Setup setup)
+		{
+			this.Id = new Identifier(id);
+			this.Setup = setup;
+			this.CanVerify = HasInnerMock(setup);
+		}
+
+		public void Deconstruct(out Identifier id, out Setup setup)
+		{
+			id = this.Id;
+			setup = this.Setup;
+		}
+
+		private static bool HasInnerMock(Setup setup)
+			=> setup is AutoImplementedPropertyGetterSetup 
+			|| setup is AutoImplementedPropertySetterSetup
+			|| setup is InnerMockSetup;
+
+		public static InvokableSetup NotRegistered => notRegistered;
+	}
+
 	internal sealed class SetupCollection
 	{
-		private List<Setup> setups;
+		private readonly List<InvokableSetup> setups;
 		private uint overridden;  // bit mask for the first 32 setups flagging those known to be overridden
 
 		public SetupCollection()
 		{
-			this.setups = new List<Setup>();
+			this.setups = new List<InvokableSetup>();
 			this.overridden = 0U;
 		}
 
@@ -22,7 +61,7 @@ namespace Moq
 		{
 			lock (this.setups)
 			{
-				this.setups.Add(setup);
+				this.setups.Add(new InvokableSetup(this.setups.Count, setup));
 			}
 		}
 
@@ -30,7 +69,7 @@ namespace Moq
 		{
 			lock (this.setups)
 			{
-				return this.setups.Any(predicate);
+				return this.setups.Select(r => r.Setup).Any(predicate);
 			}
 		}
 
@@ -43,15 +82,15 @@ namespace Moq
 			}
 		}
 
-		public Setup FindMatchFor(Invocation invocation)
+		public InvokableSetup FindMatchFor(Invocation invocation)
 		{
 			// Fast path (no `lock`) when there are no setups:
 			if (this.setups.Count == 0)
 			{
-				return null;
+				return InvokableSetup.NotRegistered;
 			}
 
-			Setup matchingSetup = null;
+			InvokableSetup matchingSetup = InvokableSetup.NotRegistered;
 
 			lock (this.setups)
 			{
@@ -60,21 +99,23 @@ namespace Moq
 				{
 					if (i < 32 && (this.overridden & (1U << i)) != 0) continue;
 
-					var setup = this.setups[i];
+					var registeredSetup = this.setups[i];
+
+					var (index, setup) = registeredSetup;
 
 					// the following conditions are repetitive, but were written that way to avoid
 					// unnecessary expensive calls to `setup.Matches`; cheap tests are run first.
-					if (matchingSetup == null && setup.Matches(invocation))
+					if (matchingSetup == InvokableSetup.NotRegistered && setup.Matches(invocation))
 					{
-						matchingSetup = setup;
+						matchingSetup = registeredSetup;
 						if (setup.Method == invocation.Method)
 						{
 							break;
 						}
 					}
-					else if (setup.Method == invocation.Method && setup.Matches(invocation))
+					else if (registeredSetup.Setup.Method == invocation.Method && setup.Matches(invocation))
 					{
-						matchingSetup = setup;
+						matchingSetup = registeredSetup;
 						break;
 					}
 				}
@@ -83,14 +124,14 @@ namespace Moq
 			return matchingSetup;
 		}
 
-		public IEnumerable<Setup> GetInnerMockSetups()
+		public IEnumerable<InvokableSetup> GetInnerMockSetups()
 		{
 			return this.ToArrayLive(setup => setup.ReturnsInnerMock(out _));
 		}
 
-		public Setup[] ToArrayLive(Func<Setup, bool> predicate)
+		public InvokableSetup[] ToArrayLive(Func<Setup, bool> predicate)
 		{
-			var matchingSetups = new Stack<Setup>();
+			var matchingSetups = new Stack<InvokableSetup>();
 			var visitedSetups = new HashSet<InvocationShape>();
 
 			lock (this.setups)
@@ -100,7 +141,9 @@ namespace Moq
 				{
 					if (i < 32 && (this.overridden & (1U << i)) != 0) continue;
 
-					var setup = this.setups[i];
+					var registeredSetup = this.setups[i];
+
+					var (index, setup) = registeredSetup;
 
 					if (setup.Condition != null)
 					{
@@ -117,7 +160,7 @@ namespace Moq
 
 					if (predicate(setup))
 					{
-						matchingSetups.Push(setup);
+						matchingSetups.Push(registeredSetup);
 					}
 				}
 			}

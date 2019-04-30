@@ -4,16 +4,78 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Moq
 {
 	internal sealed class InvocationCollection : IInvocationList
 	{
+		internal struct TimestampIdentifier : IEquatable<TimestampIdentifier>
+		{
+			private readonly InvokableSetup.Identifier identifier;
+
+			private readonly int timestamp;
+
+			public TimestampIdentifier(InvokableSetup.Identifier identifier, int version)
+			{
+				this.identifier = identifier;
+				this.timestamp = version;
+			}
+
+			public int GetHashCode(TimestampIdentifier obj)
+			{
+				return identifier.Id.GetHashCode();
+			}
+
+			public bool Equals(TimestampIdentifier other)
+			{
+				return this.identifier.Id == other.identifier.Id && this.timestamp <= other.timestamp;
+			}
+		}
+
+		internal class InvocationContext : IDisposable
+		{
+			private IReadOnlyDictionary<TimestampIdentifier, Invocation> lookup;
+			private readonly int version;
+			private readonly object syncRoot;
+
+			internal InvocationContext(IReadOnlyDictionary<TimestampIdentifier, Invocation> lookup, int version, object syncRoot)
+			{
+				this.lookup = lookup;
+				this.version = version;
+				this.syncRoot = syncRoot;
+			}
+
+			public bool IsMatchedByInvocation(InvokableSetup setup, Func<InvokableSetup, bool> dontVerify)
+			{
+				if (dontVerify(setup))
+				{
+					return true;
+				}
+
+				lock (syncRoot)
+				{
+					if (this.lookup != null && this.lookup.TryGetValue(new TimestampIdentifier(setup.Id, this.version), out Invocation invocation))
+					{
+						invocation.MarkAsVerified();
+						return true;
+					}
+				}
+
+				return false;
+			}
+
+			public void Dispose()
+			{
+				this.lookup = null;
+			}
+		}
+
 		private Invocation[] invocations;
+		private Dictionary<TimestampIdentifier, Invocation> matchedInvocations;
 
 		private int capacity = 0;
 		private int count = 0;
+		private int timestamp = 0;
 
 		private readonly object invocationsLock = new object();
 
@@ -48,15 +110,18 @@ namespace Moq
 		{
 			lock (this.invocationsLock)
 			{
-				if (this.count == this.capacity)
-				{
-					var targetCapacity = this.capacity == 0 ? 4 : (this.capacity * 2);
-					Array.Resize(ref this.invocations, targetCapacity);
-					this.capacity = targetCapacity;
-				}
+				EnsureCapacity();
 
 				this.invocations[this.count] = invocation;
 				this.count++;
+			}
+		}
+
+		public void RecordMatchedInvocation(InvokableSetup.Identifier identifier, Invocation invocation)
+		{
+			lock(this.invocationsLock)
+			{
+				this.matchedInvocations[new TimestampIdentifier(identifier, ++this.timestamp)] = invocation;
 			}
 		}
 
@@ -66,6 +131,7 @@ namespace Moq
 			{
 				// Replace the collection so readers with a reference to the old collection aren't interrupted
 				this.invocations = null;
+				this.matchedInvocations = null;
 				this.count = 0;
 				this.capacity = 0;
 			}
@@ -130,6 +196,30 @@ namespace Moq
 			}
 		}
 
+		internal InvocationContext AsInvocationContext()
+		{
+			lock (this.invocationsLock)
+			{
+				return new InvocationContext(this.matchedInvocations, this.timestamp, this.invocationsLock);
+			}
+		}
+
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+		private void EnsureCapacity()
+		{
+			if (this.count == this.capacity)
+			{
+				var targetCapacity = this.capacity == 0 ? DefaultCapacity() : (this.capacity * 2);
+				Array.Resize(ref this.invocations, targetCapacity);
+				this.capacity = targetCapacity;
+			}
+		}
+
+		private int DefaultCapacity()
+		{
+			this.matchedInvocations = new Dictionary<TimestampIdentifier, Invocation>();
+			return 4;
+		}
 	}
 }

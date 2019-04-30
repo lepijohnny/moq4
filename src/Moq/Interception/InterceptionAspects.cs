@@ -99,19 +99,13 @@ namespace Moq
 	{
 		public static bool Handle(Invocation invocation, Mock mock)
 		{
-			var matchedSetup = mock.Setups.FindMatchFor(invocation);
+			var (id, matchedSetup) = mock.Setups.FindMatchFor(invocation);
+
 			if (matchedSetup != null)
 			{
 				matchedSetup.Condition?.EvaluatedSuccessfully();
 
-				if (matchedSetup.IsVerifiable)
-				{
-					invocation.MarkAsMatchedByVerifiableSetup();
-				}
-				else
-				{
-					invocation.MarkAsMatchedBySetup();
-				}
+				mock.MutableInvocations.RecordMatchedInvocation(id, invocation);
 
 				matchedSetup.SetOutParameters(invocation);
 

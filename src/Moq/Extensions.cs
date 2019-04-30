@@ -273,11 +273,11 @@ namespace Moq
 			}
 		}
 
-		public static bool TryFind(this IEnumerable<Setup> innerMockSetups, InvocationShape expectation, out Setup setup)
+		public static bool TryFind(this IEnumerable<InvokableSetup> innerMockSetups, InvocationShape expectation, out Setup setup)
 		{
-			Debug.Assert(innerMockSetups.All(s => s.ReturnsInnerMock(out _)));
+			Debug.Assert(innerMockSetups.All(s => s.Setup.ReturnsInnerMock(out _)));
 
-			foreach (Setup innerMockSetup in innerMockSetups)
+			foreach (var (index, innerMockSetup) in innerMockSetups)
 			{
 				if (innerMockSetup.Expectation.Equals(expectation))
 				{
@@ -290,9 +290,9 @@ namespace Moq
 			return false;
 		}
 
-		public static bool TryFind(this IEnumerable<Setup> innerMockSetups, Invocation invocation, out Setup setup)
+		public static bool TryFind(this IEnumerable<InvokableSetup> innerMockSetups, Invocation invocation, out Setup setup)
 		{
-			foreach (Setup innerMockSetup in innerMockSetups)
+			foreach (var (index, innerMockSetup) in innerMockSetups)
 			{
 				if (innerMockSetup.Matches(invocation))
 				{
