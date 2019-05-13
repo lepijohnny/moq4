@@ -4206,6 +4206,175 @@ namespace Moq.Tests.Regressions
 
 		#endregion
 
+		#region 657
+
+		public class _657
+		{
+			public interface IExplicit
+			{
+				int Bar();
+
+				IExplicitNested BarNested();
+			}
+
+			public interface IExplicitNested
+			{
+				int Foo();
+			}
+			
+			public class Explicit : IExplicit
+			{
+				int IExplicit.Bar() => 1;
+
+				public virtual int Bar() => 2;
+
+				IExplicitNested IExplicit.BarNested() => default;
+
+				public virtual IExplicitNested BarNested() => default;
+			}
+
+			public class ExplicitNested : IExplicitNested
+			{
+				int IExplicitNested.Foo() => 1;
+
+				public virtual int Foo() => 2;
+			}
+
+			public class Case1
+			{
+				[Fact]
+				public void Should_not_mock_implementation_when_as_is_used()
+				{
+					// Arrange
+					var mock = new Mock<Explicit>();
+					mock.As<IExplicit>().Setup(m => m.Bar()).Returns(100);
+
+					// Act
+					var a = mock.Object.Bar();
+					var b = mock.As<IExplicit>().Object.Bar();
+
+					// Assert
+					Assert.Equal(0, a);
+					Assert.Equal(100, b);
+				}
+
+				[Fact]
+				public void Should_mock_implementation_when_as_is_not_used()
+				{
+					// Arrange
+					var mock = new Mock<Explicit>();
+					mock.Setup(m => m.Bar()).Returns(100);
+					mock.As<IExplicit>().Setup(m => m.Bar()).Returns(101);
+
+					// Act
+					var a = mock.Object.Bar();
+					var b = mock.As<IExplicit>().Object.Bar();
+
+					// Assert
+					Assert.Equal(100, a);
+					Assert.Equal(101, b);
+				}
+
+				[Fact]
+				public void Should_verify_only_implementation_method()
+				{
+					// Arrange
+					var mock = new Mock<Explicit>();
+					mock.Setup(m => m.Bar()).Returns(100);
+					mock.As<IExplicit>().Setup(m => m.Bar()).Returns(101);
+
+					// Act
+					var a = mock.Object.Bar();
+
+					// Assert
+					mock.Verify(m => m.Bar(), Times.Once);
+					mock.As<IExplicit>().Verify(m => m.Bar(), Times.Never);
+				}
+
+				[Fact]
+				public void Should_verify_only_interface_method()
+				{
+					// Arrange
+					var mock = new Mock<Explicit>();
+					mock.Setup(m => m.Bar()).Returns(100);
+					mock.As<IExplicit>().Setup(m => m.Bar()).Returns(101);
+
+					// Act
+					var a = mock.As<IExplicit>().Object.Bar();
+
+					// Assert
+					mock.Verify(m => m.Bar(), Times.Never);
+					mock.As<IExplicit>().Verify(m => m.Bar(), Times.Once);
+				}
+			}
+
+			public class Case2
+			{
+				[Fact]
+				public void Should_return_callbase_when_cast_is_used()
+				{
+					// Arrange
+					var mock = new Mock<Explicit>();
+					mock.Setup(m => m.Bar()).Returns(100);
+
+					// Act
+					var a = ((IExplicit)mock.Object).Bar();
+
+					// Assert
+					Assert.Equal(1, a);
+				}
+			}
+
+			public class Case3
+			{
+				[Fact]
+				public void Should_work_together_with_callbase()
+				{
+					// Arrange
+					var mock = new Mock<Explicit>();
+					mock.As<IExplicit>().Setup(m => m.Bar()).CallBase();
+
+					// Act
+					var a = ((IExplicit)mock.Object).Bar();
+					var b = mock.Object.Bar();
+
+					// Assert
+					Assert.True(a == 1, "a");
+					Assert.True(b == 0, "b");
+				}
+			}
+
+			public class Case4
+			{
+				[Fact]
+				public void Should_not_throw_when_nested_invoked()
+				{
+					var mock = new Mock<Explicit>();
+					mock.Setup(m => m.BarNested().Foo()).Returns(1).Verifiable();
+					mock.As<IExplicit>().Setup(m => m.BarNested().Foo()).Returns(2).Verifiable();
+
+					var a = mock.Object.BarNested().Foo();
+					var b = mock.As<IExplicit>().Object.BarNested().Foo();
+
+					mock.Verify();
+				}
+
+				[Fact]
+				public void Should_throw_when_nested_not_invoked()
+				{
+					var mock = new Mock<Explicit>();
+					mock.Setup(m => m.BarNested().Foo()).Returns(1).Verifiable();
+					mock.As<IExplicit>().Setup(m => m.BarNested().Foo()).Returns(2).Verifiable();
+
+					var a = mock.Object.BarNested().Foo();
+
+					Assert.Throws<MockException>(() => mock.Verify());
+				}
+			}
+		}
+
+		#endregion
+
 		#region Matcher should work with Convert
 
 		public class MatcherConvertFixture

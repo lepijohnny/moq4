@@ -86,6 +86,11 @@ namespace Moq
 		{
 			var method = this.Method;
 
+			if(LooksLikeInterfaceImplementation(method, invocationMethod))
+			{
+				return false;
+			}
+
 			if (!method.DeclaringType.IsAssignableFrom(invocationMethod.DeclaringType))
 			{
 				return false;
@@ -150,6 +155,11 @@ namespace Moq
 			}
 
 			return true;
+		}
+
+		private static bool LooksLikeInterfaceImplementation(MethodInfo method, MethodInfo invocationMethod)
+		{
+			return method.DeclaringType.IsInterface ^ invocationMethod.DeclaringType.IsInterface;
 		}
 
 		private static Expression[] PartiallyEvaluateArguments(IReadOnlyList<Expression> arguments)
